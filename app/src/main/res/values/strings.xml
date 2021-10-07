@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">LocationApp</string>
+    <string name="cellId">Cell ID: </string>
+    <string name="start">Start</string>
+</resources>
