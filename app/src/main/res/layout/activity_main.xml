@@ -10,7 +10,7 @@
     <Button
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:id="@+id/btn_start"
+        android:id="@+id/btn_start_cellId"
         android:layout_marginTop="10dp"
         android:layout_marginRight="10dp"
         android:layout_marginLeft="10dp"
@@ -49,20 +49,61 @@
             />
 
     </LinearLayout>
+
+
+    <EditText
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/editTextN"
+        android:ems="10"
+        android:inputType="number"
+        android:hint="@string/number_of_n_samples"
+        android:gravity="center"
+        />
+
+    <EditText
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/editTextM"
+        android:ems="10"
+        android:inputType="number"
+        android:hint="@string/number_of_m_samples"
+        android:gravity="center"
+        />
+
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/confirm"
+        android:id="@+id/btn_confirm"
+        />
+
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/btn_start_rssi"
+        android:layout_marginTop="10dp"
+        android:layout_marginRight="10dp"
+        android:layout_marginLeft="10dp"
+        android:background="@drawable/custom_button"
+        android:text="@string/start_measurement"
+        android:textColor="#FFFFFF"/>
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:id="@+id/text1"
+        android:id="@+id/text_stations_count"
+        android:layout_margin="10dp"
         />
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:id="@+id/text2"/>
+        android:id="@+id/text_location"
+        android:gravity="center"
+        android:text="Your location: "/>
 
-    <TextView
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:id="@+id/text3"/>
+
+
+
 
 
 </LinearLayout>

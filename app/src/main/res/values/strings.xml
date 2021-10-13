@@ -1,5 +1,9 @@
 <resources>
     <string name="app_name">LocationApp</string>
     <string name="cellId">Cell ID: </string>
-    <string name="start">Start</string>
+    <string name="start">Start CellId</string>
+    <string name="number_of_n_samples">Number of N-samples</string>
+    <string name="number_of_m_samples">Number of M-samples</string>
+    <string name="confirm">Confirm</string>
+    <string name="start_measurement">start measurement</string>
 </resources>
