@@ -45,38 +45,69 @@
             android:layout_height="wrap_content"
             android:layout_weight="0.8"
             android:textSize="20sp"
-            android:id="@+id/textCellId"
+            android:id="@+id/text_cellId"
             />
 
     </LinearLayout>
 
-
-    <EditText
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:id="@+id/editTextN"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true"
+        android:orientation="horizontal">
+
+
+    <EditText
+        android:id="@+id/edit_text_n"
+        android:layout_height="wrap_content"
         android:ems="10"
-        android:inputType="number"
+        android:layout_weight="1"
+        android:gravity="center"
         android:hint="@string/number_of_n_samples"
-        android:gravity="center"
-        />
+        android:textSize="14dp"
+        android:inputType="number"
+        android:layout_width="0dp" />
 
-    <EditText
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="0.8"
+            android:text="@string/confirm"
+            android:id="@+id/btn_confirm"
+            />
+
+
+    </LinearLayout>
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:id="@+id/editTextM"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true"
+        android:orientation="horizontal">
+
+    <EditText
+        android:id="@+id/edit_text_m"
+        android:layout_height="wrap_content"
         android:ems="10"
-        android:inputType="number"
-        android:hint="@string/number_of_m_samples"
+        android:layout_weight="1"
         android:gravity="center"
+        android:hint="@string/number_of_m_samples"
+        android:textSize="14dp"
+        android:inputType="number"
+        android:layout_width="0dp"
         />
 
     <Button
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/confirm"
-        android:id="@+id/btn_confirm"
+        android:layout_weight="0.75"
+        android:text="@string/clear_list"
+        android:id="@+id/btn_clear"
         />
+    </LinearLayout>
+
+
 
     <Button
         android:layout_width="match_parent"
