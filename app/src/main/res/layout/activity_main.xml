@@ -106,31 +106,45 @@
         android:id="@+id/btn_clear"
         />
     </LinearLayout>
-
-
-
-    <Button
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:id="@+id/btn_start_rssi"
+        android:orientation="horizontal">
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_weight="1"
+        android:layout_height="wrap_content"
+        android:id="@+id/btn_mode1"
         android:layout_marginTop="10dp"
-        android:layout_marginRight="10dp"
-        android:layout_marginLeft="10dp"
         android:background="@drawable/custom_button"
-        android:text="@string/start_measurement"
+        android:text="@string/start_mode1"
         android:textColor="#FFFFFF"/>
+
+        <Button
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:id="@+id/btn_mode2"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/custom_button"
+            android:text="@string/start_mode2"
+            android:textColor="#FFFFFF"/>
+
+</LinearLayout>
+
+
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:id="@+id/text_stations_count"
+        android:id="@+id/measurements"
         android:layout_margin="10dp"
         />
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:id="@+id/text_location"
-        android:gravity="center"
-        android:text="Your location: "/>
+        android:gravity="center" />
+
 
 
 
