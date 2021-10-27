@@ -43,10 +43,17 @@
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="0.8"
+            android:layout_weight="0.5"
             android:textSize="20sp"
             android:id="@+id/text_cellId"
             />
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="0.3"
+            android:id="@+id/text_timer"
+            android:gravity="right"
+            android:textAlignment="gravity"/>
 
     </LinearLayout>
 
@@ -166,6 +173,11 @@
             android:textColor="@android:color/holo_red_dark"
             android:id="@+id/text_error"/>
     </LinearLayout>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/usun"/>
 
 
 

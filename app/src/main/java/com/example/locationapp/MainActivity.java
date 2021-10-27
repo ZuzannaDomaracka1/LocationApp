@@ -11,6 +11,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.os.Environment;
 import android.telephony.CellIdentityGsm;
 import android.telephony.CellIdentityLte;
@@ -46,7 +47,6 @@ import com.opencsv.CSVWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -69,6 +69,7 @@ public class MainActivity extends AppCompatActivity {
     TextView text_location;
     TextView text_current_location;
     TextView text_error;
+    TextView text_timer;
 
     TelephonyManager telephonyManager;
     LocationRequest locationRequest;
@@ -99,6 +100,11 @@ public class MainActivity extends AppCompatActivity {
     int iterator = 0;
     List<String[]> data = new ArrayList<String[]>();
 
+    CountDownTimer countDownTimer;
+    int down_timer;
+
+
+
 
 
     //Tryb 1 - na żądanie, brak pływającego okna
@@ -116,6 +122,7 @@ public class MainActivity extends AppCompatActivity {
         text_location = findViewById(R.id.text_location);
         text_current_location = findViewById(R.id.text_current_location);
         text_error = findViewById(R.id.text_error);
+        text_timer = findViewById(R.id.text_timer);
 
         edit_text_n= findViewById(R.id.edit_text_n);
         edit_text_m = findViewById(R.id.edit_text_m);
@@ -125,6 +132,8 @@ public class MainActivity extends AppCompatActivity {
         btn_mode1 = findViewById(R.id.btn_mode1);
         btn_mode2 = findViewById(R.id.btn_mode2);
         btn_clear = findViewById(R.id.btn_clear);
+
+
 
 
         //noinspection deprecation
@@ -265,6 +274,10 @@ public class MainActivity extends AppCompatActivity {
                     int cellId = identityLte.getCi();
                     text_cellId.setText(String.valueOf(cellId));
                 }
+                if(current_measurementsList.size()!=0)
+                {
+                    stopTimer();
+                }
 
             } catch (Exception ex) {
 
@@ -306,8 +319,14 @@ public class MainActivity extends AppCompatActivity {
 
         if(current_cellId!=0 && final_N_samples!=0 && final_M_samples!=0 && current_measurementsList.size()==0) {
             Toast.makeText(MainActivity.this, "Pomiar ciągły",Toast.LENGTH_SHORT).show();
+           // startTimer();
             collectSamples2();
-        }
+
+            }
+        if(current_measurementsList.size()!=0) {
+            stopTimer();}
+
+
 
     }
     private void stopMeasurement1(){
@@ -337,6 +356,7 @@ public class MainActivity extends AppCompatActivity {
             }
 
         }
+        stopTimer();
         collectSamples2();
 
     }
@@ -407,6 +427,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void collectNextSamples() {
+
         timer = new Timer();
         timer.schedule(new TimerTask() {
             @Override
@@ -466,6 +487,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void collectSamples2(){
+        startTimer();
         timer = new Timer();
         timer.schedule(new TimerTask() {
             @Override
@@ -480,6 +502,7 @@ public class MainActivity extends AppCompatActivity {
                         CellInfo info = cellInfoList.get(i);
                         if(info instanceof  CellInfoGsm){
                             CellInfoGsm cellInfoGsm = (CellInfoGsm) info;
+
                             if(current_measurementsList.size()>=final_N_samples)
                             {
                                 if(timer!=null)
@@ -496,10 +519,19 @@ public class MainActivity extends AppCompatActivity {
                             else {
                                 runOnUiThread(() -> {
                                     if(current_cellId == cellInfoGsm.getCellIdentity().getCid() ) {
-                                        text_station.setText(String.valueOf(current_measurementsList));
-                                        Log.i("Dodawanie: ", String.valueOf(current_measurementsList));
-                                        current_measurementsList.add(0,cellInfoGsm.getCellSignalStrength().getDbm());
-                                        text_station.setText(String.valueOf(current_measurementsList));
+
+                                        if(down_timer == 0 && current_measurementsList.size() <final_N_samples){
+                                            Log.i("Timer","Czas się skończył, rozpoczynamy od nowa");
+                                            current_measurementsList.clear();
+                                            Log.i("Wartosc timer: ", String.valueOf(down_timer));
+                                            startMeasurement2();
+                                        }
+                                        else {
+                                            text_station.setText(String.valueOf(current_measurementsList));
+                                            Log.i("Dodawanie: ", String.valueOf(current_measurementsList));
+                                            current_measurementsList.add(0, cellInfoGsm.getCellSignalStrength().getDbm());
+                                            text_station.setText(String.valueOf(current_measurementsList));
+                                        }
 
                                     }
 
@@ -607,6 +639,9 @@ public class MainActivity extends AppCompatActivity {
         if(other_CellId!=current_cellId){
             current_measurementsList.clear();
             Toast.makeText(MainActivity.this, "Zmiana CellID",Toast.LENGTH_SHORT).show();
+            text_location.setText("Your location: \n In progress...");
+            text_error.setText("Error of location[m] \n In progress...");
+            error_location_m = 0.0;
             Log.i("Po zmianie cellID", String.valueOf(current_measurementsList));
             collectSamples2();
         }
@@ -785,6 +820,35 @@ public void onRequestPermissionsResult(
             InputMethodManager imm = (InputMethodManager)getSystemService(Context.INPUT_METHOD_SERVICE);
             imm.hideSoftInputFromWindow(view.getWindowToken(),0);
         }
+    }
+
+    public void startTimer() {
+
+        countDownTimer =  new CountDownTimer(final_N_samples*1000+10000, 1000) {
+
+
+            @SuppressLint("SetTextI18n")
+            public void onTick(long millisUntilFinished) {
+                int total = (int) (millisUntilFinished / 1000);
+                down_timer = Integer.parseInt(String.valueOf(total));
+                text_timer.setText(String.valueOf(total));
+
+            }
+
+            @SuppressLint("SetTextI18n")
+            @Override
+            public void onFinish() {
+
+
+            }
+        }.start();
+    }
+
+    @SuppressLint("SetTextI18n")
+    public void stopTimer(){
+
+        countDownTimer.cancel();
+
     }
 
 
