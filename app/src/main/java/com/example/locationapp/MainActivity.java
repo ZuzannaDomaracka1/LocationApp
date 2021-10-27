@@ -9,7 +9,9 @@ import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.location.Location;
 import android.os.Bundle;
+import android.os.Environment;
 import android.telephony.CellIdentityGsm;
 import android.telephony.CellIdentityLte;
 import android.telephony.CellInfo;
@@ -28,17 +30,30 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationResult;
+import com.google.android.gms.location.LocationServices;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.Query;
 import com.google.firebase.database.ValueEventListener;
+import com.opencsv.CSVWriter;
 
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
+
+import static java.lang.Math.cos;
+import static java.lang.Math.incrementExact;
+import static java.lang.Math.sqrt;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -52,9 +67,17 @@ public class MainActivity extends AppCompatActivity {
     Button btn_clear;
     TextView text_station;
     TextView text_location;
+    TextView text_current_location;
+    TextView text_error;
 
     TelephonyManager telephonyManager;
+    LocationRequest locationRequest;
+    FusedLocationProviderClient fusedLocationProviderClient;
+    LocationCallback locationCallback;
+
     int current_cellId;
+    int other_CellId;
+    Location current_location;
     public List<Integer> current_measurementsList = new ArrayList<>();
     public List<Integer> copy_list = new ArrayList<>();
     public List<Integer> final_list = new ArrayList<>();
@@ -67,12 +90,21 @@ public class MainActivity extends AppCompatActivity {
 
     boolean measurementEnabled = false;
 
-    String current_lat;
-    String current_lon;
+    double current_lat;
+    double current_lon;
+    double gps_lat;
+    double gps_lon;
+    double error_location_km;
+    double error_location_m;
+    int iterator = 0;
+    List<String[]> data = new ArrayList<String[]>();
+
+
 
     //Tryb 1 - na żądanie, brak pływającego okna
     //Tryb 2 - tryb ciągły. Użytkownik dostaje aktualizacje pozycji na bieżąco na podstawie analizy zawartości pływającego okna. Wywołanie metody estimationLocation
     // odbywa się w wątku w tle.
+    // Zapis danych do csv --  Należy nacisnąć przycisk odświeżania w prawym górnym rogu
 
 
     @Override
@@ -82,6 +114,8 @@ public class MainActivity extends AppCompatActivity {
         text_cellId = findViewById(R.id.text_cellId);
         text_station = findViewById(R.id.measurements);
         text_location = findViewById(R.id.text_location);
+        text_current_location = findViewById(R.id.text_current_location);
+        text_error = findViewById(R.id.text_error);
 
         edit_text_n= findViewById(R.id.edit_text_n);
         edit_text_m = findViewById(R.id.edit_text_m);
@@ -93,13 +127,35 @@ public class MainActivity extends AppCompatActivity {
         btn_clear = findViewById(R.id.btn_clear);
 
 
+        //noinspection deprecation
+        locationRequest = new LocationRequest();
+        locationRequest.setInterval(10000);
+        locationRequest.setFastestInterval(10000);
+        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+
+        locationCallback = new LocationCallback() {
+            @Override
+            public void onLocationResult(@NonNull LocationResult locationResult) {
+                super.onLocationResult(locationResult);
+                current_location = locationResult.getLastLocation();
+
+            }
+        };
+
         telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED ||
-                ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            requestPermission();
-            return;
+        fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(MainActivity.this);
+
+        if(ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED ||
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)!=PackageManager.PERMISSION_GRANTED)   {
+            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.WRITE_EXTERNAL_STORAGE}, 100);
+
+        }
+        else
+        {
+            fusedLocationProviderClient.requestLocationUpdates(locationRequest, locationCallback, null);
         }
         text_station.setText("");
+        text_current_location.setText("");
         btn_clear.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -130,6 +186,7 @@ public class MainActivity extends AppCompatActivity {
         btn_mode1.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                data.add(new String[]{"Index", "GPS-latitude", "GPS-longitude","RSSI-latitude", "RSSI-longitude", "Error", "N", "M"});
 
                 if(measurementEnabled){
                     measurementEnabled = false;
@@ -170,6 +227,9 @@ public class MainActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         switch ((item.getItemId())){
             case R.id.refresh:
+                //zapis danych do csv
+
+                save(data);
                 startActivity(new Intent(MainActivity.this, MainActivity.class));
                 return true;
             default: return super.onOptionsItemSelected(item);
@@ -217,6 +277,9 @@ public class MainActivity extends AppCompatActivity {
 
         btn_mode1.setText("STOP");
         text_location.setText(" ");
+        text_current_location.setText("");
+        text_error.setText("");
+
         if(current_cellId !=0 &&  final_N_samples!=0  && final_M_samples==0) {
             Toast.makeText(MainActivity.this, "pierwszy pomiar ", Toast.LENGTH_SHORT).show();
             collectSamples();
@@ -239,6 +302,7 @@ public class MainActivity extends AppCompatActivity {
     private void startMeasurement2(){
         btn_mode2.setText("STOP");
         text_location.setText(" ");
+        data.add(new String[]{"Index", "GPS-latitude", "GPS-longitude","RSSI-latitude", "RSSI-longitude", "Error", "N", "M"});
 
         if(current_cellId!=0 && final_N_samples!=0 && final_M_samples!=0 && current_measurementsList.size()==0) {
             Toast.makeText(MainActivity.this, "Pomiar ciągły",Toast.LENGTH_SHORT).show();
@@ -268,7 +332,7 @@ public class MainActivity extends AppCompatActivity {
             for(int a=0;a<final_M_samples;a++) {
                 text_station.setText(String.valueOf(current_measurementsList));
                 current_measurementsList.remove(current_measurementsList.size() - 1);
-                Log.i("Usuwannie: ", String.valueOf(current_measurementsList));
+                Log.i("Usuwanie: ", String.valueOf(current_measurementsList));
                 text_station.setText(String.valueOf(current_measurementsList));
             }
 
@@ -460,6 +524,7 @@ public class MainActivity extends AppCompatActivity {
         DatabaseReference myRef = FirebaseDatabase.getInstance().getReference();
         Query query = myRef.child("MeasurementCells").orderByChild("cellId").equalTo(current_cellId);
         query.addListenerForSingleValueEvent(new ValueEventListener() {
+            @SuppressLint("SetTextI18n")
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 if(snapshot.exists()){
@@ -479,26 +544,30 @@ public class MainActivity extends AppCompatActivity {
                         copy_list.retainAll(current_measurementsList); // porównanie
                         size_list = copy_list.size(); // liczba takich samych próbek
                         if(iterator == 1){
-                            final_list = measurementCell.measurementsList;
+
                             if(size_list == 0){
-                                text_location.setText("Location not found");
+
                                 final_list.clear();
-                                current_lat = null;
-                                current_lon = null;
+                                current_lat = 0.0;
+                                current_lon = 0.0;
+                            }
+                            else {
+                                final_list = measurementCell.measurementsList;
                             }
                         }
                         else if(size_list >= size_list1){
                             final_list = measurementCell.measurementsList;
-                            current_lat = String.valueOf(measurementCell.lat);
-                            current_lon = String.valueOf(measurementCell.lon);
+                            current_lat = measurementCell.lat;
+                            current_lon = measurementCell.lon;
+                            size_list1 = copy_list.size();
                             if(size_list==0){
                                 final_list.clear();
-                                current_lon=null;
-                                current_lat=null;
+                                current_lon = 0.0;
+                                current_lat = 0.0;
                             }
                         }
                         Log.i("Liczba takich samych: ",String.valueOf(size_list));
-                        size_list1 = copy_list.size();
+
                         copy_list.clear();
 
 
@@ -506,12 +575,15 @@ public class MainActivity extends AppCompatActivity {
                     Log.i("Ostateczna lista: ", String.valueOf(final_list));
                     Log.i("Koordynaty lat: ", String.valueOf(current_lat));
                     Log.i("Koordynaty lon: ", String.valueOf(current_lon));
-                    text_station.setText("");
-                    if(current_lat==null && current_lon==null){
-                        text_station.setText("Location not found");
+
+                    if(current_lat==0.0 && current_lon==0.0){
+                        text_location.setText("Location not found");
                     }
                     else {
                         text_location.setText("Your location: \n" + current_lat + "\n" + current_lon);
+                        updateLocationValues(current_location);
+
+
                     }
 
                 }
@@ -527,94 +599,185 @@ public class MainActivity extends AppCompatActivity {
     }
 
   public void estimationLocation2(){
+      measurementEnabled=false;
+      other_CellId=current_cellId;
+
 
         cellInfo();
-        measurementEnabled=false;
+        if(other_CellId!=current_cellId){
+            current_measurementsList.clear();
+            Toast.makeText(MainActivity.this, "Zmiana CellID",Toast.LENGTH_SHORT).show();
+            Log.i("Po zmianie cellID", String.valueOf(current_measurementsList));
+            collectSamples2();
+        }
+        else {
 
-        Runnable runnable = new Runnable() {
-            @Override
-            public void run() {
+
+            Runnable runnable = new Runnable() {
+                @Override
+                public void run() {
 
                     DatabaseReference myRef = FirebaseDatabase.getInstance().getReference();
                     Query query = myRef.child("MeasurementCells").orderByChild("cellId").equalTo(current_cellId);
+                    other_CellId = current_cellId;
                     query.addListenerForSingleValueEvent(new ValueEventListener() {
-                    @Override
-                    public void onDataChange(@NonNull DataSnapshot snapshot) {
-                        if(snapshot.exists()){
-                            int iterator = 0;
-                            int size_list;
-                            int size_list1=0;
+                        @Override
+                        public void onDataChange(@NonNull DataSnapshot snapshot) {
+                            if (snapshot.exists()) {
+                                int iterator = 0;
+                                int size_list;
+                                int size_list1 = 0;
 
-                            for(DataSnapshot snapshot1 : snapshot.getChildren()){
+                                for (DataSnapshot snapshot1 : snapshot.getChildren()) {
 
-                                iterator=iterator+1;
-                                MeasurementCell measurementCell = snapshot1.getValue(MeasurementCell.class);
-                                copy_list.addAll(measurementCell.measurementsList); // kopia listy z Firebase
-                                Log.i("", String.valueOf(iterator));
-                                Log.i("Skopiowana lista", String.valueOf(current_measurementsList)); //aktualna lista RSSI
-                                Log.i("Lista z Firebase: ", String.valueOf(measurementCell.measurementsList)); //
+                                    iterator = iterator + 1;
+                                    MeasurementCell measurementCell = snapshot1.getValue(MeasurementCell.class);
+                                    copy_list.addAll(measurementCell.measurementsList); // kopia listy z Firebase
+                                    Log.i("", String.valueOf(iterator));
+                                    Log.i("Skopiowana lista", String.valueOf(current_measurementsList)); //aktualna lista RSSI
+                                    Log.i("Lista z Firebase: ", String.valueOf(measurementCell.measurementsList)); //
 
-                                copy_list.retainAll(current_measurementsList); // porównanie
-                                size_list = copy_list.size(); // liczba takich samych próbek
-                                if(iterator == 1){
-                                    final_list = measurementCell.measurementsList;
-                                    if(size_list == 0){
-                                        text_location.setText("Location not found");
-                                        final_list.clear();
-                                        current_lat = null;
-                                        current_lon = null;
+                                    copy_list.retainAll(current_measurementsList); // porównanie
+                                    size_list = copy_list.size(); // liczba takich samych próbek
+                                    if (iterator == 1) {
+
+                                        if (size_list == 0) {
+                                            text_location.setText("Location not found");
+                                            final_list.clear();
+                                            current_lat = 0.0;
+                                            current_lon = 0.0;
+                                        }
+                                        else{
+                                            final_list = measurementCell.measurementsList;
+                                        }
+                                    } else if (size_list >= size_list1) {
+
+                                        final_list = measurementCell.measurementsList;
+                                        current_lat = measurementCell.lat;
+                                        current_lon = measurementCell.lon;
+                                        size_list1 = copy_list.size();
+                                        if (size_list == 0) {
+                                            final_list.clear();
+                                            current_lon = 0.0;
+                                            current_lat = 0.0;
+                                        }
                                     }
+                                    Log.i("Liczba takich samych wartości: ", String.valueOf(size_list));
+
+                                    copy_list.clear();
+
                                 }
-                                else if(size_list >= size_list1){
-                                    final_list = measurementCell.measurementsList;
-                                    current_lat = String.valueOf(measurementCell.lat);
-                                    current_lon = String.valueOf(measurementCell.lon);
-                                    if(size_list==0){
-                                        final_list.clear();
-                                        current_lon=null;
-                                        current_lat=null;
-                                    }
-                                }
-                                Log.i("Liczba takich samych wartości: ",String.valueOf(size_list));
-                                size_list1 = copy_list.size();
-                                copy_list.clear();
+                                Log.i("Ostateczna lista: ", String.valueOf(final_list));
+                                Log.i("Koordynaty lat: ", String.valueOf(current_lat));
+                                Log.i("Koordynaty lon: ", String.valueOf(current_lon));
+                                text_station.setText("");
 
 
+                                updateLocationValues(current_location);
+
+                                stopMeasurement2();
+
                             }
-                            Log.i("Ostateczna lista: ", String.valueOf(final_list));
-                            Log.i("Koordynaty lat: ", String.valueOf(current_lat));
-                            Log.i("Koordynaty lon: ", String.valueOf(current_lon));
-                            text_station.setText("");
-                            if(current_lat==null && current_lon==null){
-                                text_station.setText("Location not found");
-                            }
-                            else {
-                                text_location.setText("Your location: \n" + current_lat + "\n" + current_lon);
-                            }
-                            stopMeasurement2();
+                        }
+
+                        @Override
+                        public void onCancelled(@NonNull DatabaseError error) {
 
                         }
-                    }
+                    });
 
-                    @Override
-                    public void onCancelled(@NonNull DatabaseError error) {
+                }
+            };
 
-                    }
-                });
-
-            }
-        };
-
-        Thread thread = new Thread(runnable);
-        thread.start();
+            Thread thread = new Thread(runnable);
+            thread.start();
+        }
 
   }
 
+  @SuppressLint("SetTextI18n")
+  public void updateLocationValues(Location location){
 
+        iterator = iterator+1; //index
+        String s_iterator = String.valueOf(iterator);
+
+        gps_lat = location.getLatitude(); // koordynaty GPS
+        gps_lon = location.getLongitude();
+        String s_gps_lat = String.valueOf(gps_lat);
+        String s_gps_lon = String.valueOf(gps_lon);
+
+        text_current_location.setText("Location GPS: \n" + gps_lat + "\n" + gps_lon);
+        String s_current_lat = String.valueOf(current_lat);
+        String s_current_lon = String.valueOf(current_lon);
+
+
+         //error
+         error_location_km = sqrt(Math.pow(gps_lat-current_lat,2)+(Math.pow(cos((current_lat*Math.PI)/180)*(gps_lon-current_lon),2)))*(40075.704/360);
+         error_location_m = error_location_km * 1000;
+         Log.i("error [m]", String.valueOf(error_location_m));
+         text_error.setText("Error of location [m]: \n" + error_location_m);
+
+         String s_error = String.valueOf(error_location_m);
+
+         String s_n_final = String.valueOf(final_N_samples);
+         String s_m_final = String.valueOf(final_M_samples);
+
+         if(current_lon==0.0 && current_lat==0.0){
+             text_location.setText("Location not found");
+             text_error.setText("Error of location [m]: \n" + "Location not found");
+             error_location_m = 0.0;
+         }
+         else {
+             text_location.setText("Your location: \n" + current_lat + "\n" + current_lon);
+         }
+
+         data.add(new String[]{s_iterator, s_gps_lat,s_gps_lon, s_current_lat,s_current_lon, s_error,s_n_final,s_m_final});
+
+  }
+
+  public void save(List<String[]> data){
+
+      @SuppressWarnings("deprecation")
+      String csv = (Environment.getExternalStorageDirectory().getAbsolutePath() + "/MyMeasuremenrs.csv");
+      CSVWriter writer;
+
+      try {
+
+          writer = new CSVWriter(new FileWriter(csv));
+
+          writer.writeAll(data);
+          writer.close();
+      } catch (IOException e) {
+          e.printStackTrace();
+      }
+
+
+  }
+
+/*
     protected void requestPermission() {
         ActivityCompat.requestPermissions(this,
-                new String[]{Manifest.permission.READ_PHONE_STATE, Manifest.permission.ACCESS_COARSE_LOCATION}, 101);
+                new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.WRITE_EXTERNAL_STORAGE}, 101);
     }
+
+
+ */
+@SuppressLint("MissingPermission")
+@Override
+public void onRequestPermissionsResult(
+        int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+    super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+    switch (requestCode) {
+        case 100:
+            if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                fusedLocationProviderClient.requestLocationUpdates(locationRequest, locationCallback, null);
+
+            } else {
+                Toast.makeText(MainActivity.this, "Permission denied", Toast.LENGTH_LONG).show();
+            }
+    }
+}
 
     public void closeKeyboard(){
         View view = this.getCurrentFocus();
@@ -623,7 +786,6 @@ public class MainActivity extends AppCompatActivity {
             imm.hideSoftInputFromWindow(view.getWindowToken(),0);
         }
     }
-
 
 
 }
